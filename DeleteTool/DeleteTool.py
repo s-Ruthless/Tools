@@ -1,6 +1,6 @@
 """
 文件批量删除工具 (Batch File Deletion Tool)
-功能：用于批量删除指定文件夹中特定类型的文件，支持子文件夹搜索
+功能：用于批量删除指定文件夹中特定类型的文件
 作者：s-Ruthless
 创建时间：2024-12-31
 最后修改：2024-12-31
@@ -15,107 +15,134 @@ import tkinter.font as tkfont
 
 
 class BatchDeleteApp:
-    """
-    批量删除文件的图形界面应用类
-    实现了一个用户友好的界面，用于选择文件夹和文件类型进行批量删除操作
-    """
     def __init__(self, root):
-        """
-        初始化应用程序界面
-        Args:
-            root: tkinter主窗口对象
-        """
         self.root = root
         self.root.title("文件批量删除工具")
-        self.root.geometry("700x600")
-        self.root.configure(bg="#f8f9fa")  # 设置窗口背景色
+        self.root.geometry("800x650")  # 调整窗口大小
+        self.root.configure(bg="#ffffff")  # 改为白色背景
 
-        # 设置主题样式
-        style = ttk.Style()
-        # 设置马卡龙风格的颜色主题
-        style.configure(".",
-                        background="#f8f9fa",
-                        foreground="#000000"  # 改为纯黑色
-                        )
-        style.configure("TFrame", background="#f8f9fa")
-        style.configure("TButton",
-                        padding=6,
-                        font=('微软雅黑', 9, 'bold'),  # 添加 bold
-                        background="#7ac7a6",  # 加深绿色
-                        foreground="#000000"   # 加深文字颜色
-                        )
-        style.configure("TLabel",
-                        font=('微软雅黑', 9, 'bold'),  # 添加 bold
-                        background="#f8f9fa",
-                        foreground="#000000"   # 加深文字颜色
-                        )
-        style.configure("TCheckbutton",
-                        font=('微软雅黑', 9, 'bold'),  # 添加 bold
-                        background="#f8f9fa",
-                        foreground="#000000"   # 加深文字颜色
-                        )
-        style.configure("TLabelframe",
-                        background="#f8f9fa",
-                        foreground="#000000"   # 加深边框颜色
-                        )
-        style.configure("TLabelframe.Label",
-                        font=('微软雅黑', 9, 'bold'),
-                        background="#f8f9fa",
-                        foreground="#000000"   # 加深文字颜色
-                        )
-
-        # 自定义删除按钮样式
-        style.configure("Delete.TButton",
-                        padding=10,
-                        font=('微软雅黑', 10, 'bold'),
-                        background="#ff6b6b",  # 加深红色
-                        foreground="#000000"   # 加深文字颜色
-                        )
-        style.map("Delete.TButton",
-                  background=[('active', '#ff4757')]  # 加深悬停时的颜色
-                  )
-
-        # 自定义浏览按钮样式
-        style.configure("Browse.TButton",
-                        padding=8,
-                        font=('微软雅黑', 9, 'bold'),  # 添加 bold
-                        background="#7ac7a6"  # 加深绿色
-                        )
-        style.map("Browse.TButton",
-                  background=[('active', '#68b092')]  # 加深悬停时的颜色
-                  )
-
-        # 创建主框架并添加背景色
-        self.main_frame = ttk.Frame(self.root, padding="20")
+        # 设置样式
+        self.setup_styles()
+        
+        # 创建主框架
+        self.main_frame = ttk.Frame(self.root, padding="10")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
+        # 创建界面元素
+        self.create_widgets()
+        
+        # 配置网格权重
+        self.configure_grid()
+
+    def setup_styles(self):
+        """设置界面样式"""
+        style = ttk.Style()
+        style.theme_use('clam')
+
+        # 基础样式
+        style.configure(".",
+                       background="#ffffff",
+                       foreground="#333333",
+                       font=('Microsoft YaHei UI', 9))
+        
+        # 设置按钮样式
+        style.configure("TButton",
+                       padding=(10, 5),
+                       font=('Microsoft YaHei UI', 9),
+                       background="#4CAF50",
+                       foreground="#ffffff",
+                       borderwidth=0,
+                       relief="flat")
+        
+        style.map("TButton",
+                  foreground=[('active', '#ffffff'),
+                             ('disabled', '#999999')],
+                  background=[('active', '#45a049'),
+                             ('disabled', '#cccccc')])
+
+        # 设置标签样式
+        style.configure("TLabel",
+                       font=('Microsoft YaHei UI', 9),
+                       background="#ffffff")
+        
+        # 设置框架样式
+        style.configure("TLabelframe",
+                       background="#ffffff",
+                       padding=8,
+                       relief="groove",
+                       borderwidth=1)
+        
+        style.configure("TLabelframe.Label",
+                       font=('Microsoft YaHei UI', 9, 'bold'),
+                       background="#ffffff",
+                       foreground="#1565C0")
+
+        # 设置Entry样式
+        style.configure("TEntry",
+                       font=('Microsoft YaHei UI', 9, 'bold'),
+                       padding=5,
+                       relief="groove",
+                       borderwidth=1)
+
+        # 设置删除按钮特殊样式
+        style.configure("Delete.TButton",
+                       padding=(20, 8),
+                       font=('Microsoft YaHei UI', 10, 'bold'),
+                       background="#2196F3",
+                       borderwidth=0,
+                       relief="flat")
+        
+        style.map("Delete.TButton",
+                  foreground=[('active', '#ffffff'),
+                             ('disabled', '#999999')],
+                  background=[('active', '#1976D2'),
+                             ('disabled', '#cccccc')])
+
+        # 设置Combobox样式
+        style.configure("TCombobox",
+                       font=('Microsoft YaHei UI', 9),
+                       padding=2)
+
+        # 设置Checkbutton样式
+        style.configure("TCheckbutton",
+                       font=('Microsoft YaHei UI', 9),
+                       background="#ffffff")
+
+    def create_widgets(self):
+        """创建界面组件"""
         # 标题
-        title_font = tkfont.Font(family='微软雅黑', size=14, weight='bold')
-        title_label = ttk.Label(self.main_frame,
-                                text="文件批量删除工具",
-                                font=title_font,
-                                foreground="#2f3542")
-        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
+        title_label = ttk.Label(
+            self.main_frame,
+            text="文件批量删除工具",
+            font=('Microsoft YaHei UI', 16, 'bold'),
+            foreground="#1565C0"
+        )
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 15))
 
         # 选择文件夹区域
-        folder_frame = ttk.LabelFrame(self.main_frame, text="选择文件夹", padding="10")
-        folder_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        folder_frame = ttk.LabelFrame(self.main_frame, text="选择文件夹")
+        folder_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
 
         self.folder_path = tk.StringVar()
-        self.path_label = ttk.Label(folder_frame, textvariable=self.folder_path, width=50)
-        self.path_label.grid(row=0, column=0, padx=5)
+        path_entry = ttk.Entry(
+            folder_frame,
+            textvariable=self.folder_path,
+            width=55,
+            style="TEntry"
+        )
+        path_entry.grid(row=0, column=0, padx=5, pady=5)
 
-        self.folder_btn = ttk.Button(
+        folder_btn = ttk.Button(
             folder_frame,
             text="浏览...",
             command=self.select_folder,
-            style="Browse.TButton"
+            width=12
         )
-        self.folder_btn.grid(row=0, column=1, padx=5)
+        folder_btn.grid(row=0, column=1, padx=5, pady=5)
 
         # 文件类型选择区域
-        ext_frame = ttk.LabelFrame(self.main_frame, text="文件类型", padding="10")
-        ext_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        ext_frame = ttk.LabelFrame(self.main_frame, text="文件类型")
+        ext_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
 
         # 更新常见文件类型列表
         self.common_extensions = [
@@ -171,22 +198,31 @@ class BatchDeleteApp:
             ".h - C/C++头文件"
         ]
 
-        # 更新下拉框宽度
-        self.ext_type = ttk.Combobox(ext_frame,
-                                     values=self.common_extensions,
-                                     width=35,  # 增加宽度
-                                     font=('微软雅黑', 9))
+        type_frame = ttk.Frame(ext_frame)
+        type_frame.grid(row=0, column=0, columnspan=3, padx=5, pady=5)
+
+        self.ext_type = ttk.Combobox(
+            type_frame,
+            values=self.common_extensions,
+            width=35,
+            font=('Microsoft YaHei UI', 9),
+            state="readonly"
+        )
         self.ext_type.set(self.common_extensions[0])
         self.ext_type.grid(row=0, column=0, padx=5)
         self.ext_type.bind('<<ComboboxSelected>>', self.on_type_selected)
 
-        ttk.Label(ext_frame, text="或手动输入扩展名:").grid(row=0, column=1, padx=5)
-        self.extensions = ttk.Entry(ext_frame, width=20)
+        ttk.Label(type_frame, text="或手动输入扩展名:").grid(row=0, column=1, padx=5)
+        self.extensions = ttk.Entry(
+            type_frame,
+            width=20,
+            style="TEntry"
+        )
         self.extensions.grid(row=0, column=2, padx=5)
 
         # 选项区域
-        options_frame = ttk.LabelFrame(self.main_frame, text="选项", padding="10")
-        options_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        options_frame = ttk.LabelFrame(self.main_frame, text="选项")
+        options_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
 
         self.include_subfolders = tk.BooleanVar(value=False)
         self.subfolder_check = ttk.Checkbutton(
@@ -194,7 +230,7 @@ class BatchDeleteApp:
             text="包含子文件夹",
             variable=self.include_subfolders
         )
-        self.subfolder_check.grid(row=0, column=0, padx=5)
+        self.subfolder_check.grid(row=0, column=0, padx=5, pady=5)
 
         # 删除按钮
         self.delete_btn = ttk.Button(
@@ -203,42 +239,44 @@ class BatchDeleteApp:
             command=self.delete_files,
             style="Delete.TButton"
         )
-        self.delete_btn.grid(row=4, column=0, columnspan=2, pady=10)
+        self.delete_btn.grid(row=4, column=0, columnspan=2, pady=15)
 
         # 日志显示区域
-        log_frame = ttk.LabelFrame(self.main_frame, text="操作日志", padding="10")
-        log_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        log_frame = ttk.LabelFrame(self.main_frame, text="操作日志")
+        log_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 8))
 
-        # 创建日志文本框和滚动条的容器
+        # 创建日志文本框的容器框架
         log_container = ttk.Frame(log_frame)
         log_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         log_container.grid_columnconfigure(0, weight=1)
         log_container.grid_rowconfigure(0, weight=1)
 
-        # 更新日志文本框
         self.log_text = tk.Text(
             log_container,
-            height=12,
-            width=70,
-            font=('微软雅黑', 9),
+            height=10,
+            font=('Microsoft YaHei UI', 9),
             wrap=tk.WORD,
-            background="#ffd3b6",  # 淡橙色背景
-            foreground="#2d3436"
+            background="#ffffff",
+            relief="groove",
+            borderwidth=1,
+            highlightthickness=0
         )
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # 更新滚动条
         scrollbar = ttk.Scrollbar(log_container, orient="vertical", command=self.log_text.yview)
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.log_text.configure(yscrollcommand=scrollbar.set)
 
-        # 配置网格权重使日志区域可以自动扩展
+        # 配置日志框架的权重
+        log_frame.grid_columnconfigure(0, weight=1)
+        log_frame.grid_rowconfigure(0, weight=1)
+
+    def configure_grid(self):
+        """配置网格权重"""
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(5, weight=1)  # 日志框所在行可扩展
-        log_frame.grid_columnconfigure(0, weight=1)
-        log_frame.grid_rowconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(5, weight=1)
 
     def on_type_selected(self, event):
         """
