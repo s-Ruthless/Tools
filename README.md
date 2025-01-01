@@ -9,7 +9,10 @@
 - **功能**: 用于批量删除指定文件夹中特定类型的文件
 - **依赖**: 
   - Python 3.x
-  - tkinter
+  - PyQt6
+  ```bash
+  pip install PyQt6
+  ```
 - **特点**:
   - 支持文件夹选择
   - 支持多种常见文件类型
@@ -23,34 +26,40 @@
 
 ### 2. ImageConvert (图片批量转换工具)
 - **位置**: `/ImageConvert`
-- **功能**: 支持多种格式图片的批量转换
+- **功能**: 批量转换图片格式，支持多种常见图片格式之间的相互转换
 - **依赖**: 
   - Python 3.x
-  - tkinter
+  - PyQt6
+  ```bash
+  pip install PyQt6
+  ```
   - Pillow (PIL)
+  ```bash
+  pip install Pillow
+  ```
 - **特点**:
-  - 支持选择单个文件、多个文件或整个文件夹进行转换
-  - 源格式选择功能
-  - 支持PNG、JPEG、BMP、GIF、TIFF、ICO、WebP等多种格式
-  - 图形界面操作，简单直观
-  - 支持批量处理
-  - 保持目录结构
-  - 支持JPEG压缩质量调节
-  - 智能处理透明通道
-  - 实时转换进度显示
-  - 详细的转换日志
+  - 现代化图形界面
+  - 支持单个/多个文件或文件夹转换
+  - 支持PNG、JPEG、BMP、GIF、TIFF、ICO、WebP格式
+  - 源格式自动检测与验证
+  - 自定义目标文件夹
+  - 实时进度显示与转换日志
+  - 智能文件命名与目录结构保持
 - **注意事项**:
-  - 转换前请确保足够的磁盘空间
-  - 大批量转换建议先测试小批量
-  - 重要图片请注意备份
+  - 确保安装所需依赖
+  - 大量文件转换时请耐心等待
+  - JPEG格式转换会自动处理透明通道
 
 ### 3. PackagingTool (Python程序打包工具)
 - **位置**: `/PackagingTool`
 - **功能**: 将Python程序打包为独立的可执行文件(exe)
 - **依赖**: 
   - Python 3.x
-  - tkinter
+  - tkinter (Python 标准库，无需安装)
   - PyInstaller
+  ```bash
+  pip install pyinstaller
+  ```
 - **特点**:
   - 图形界面操作
   - 支持选择Python源文件
