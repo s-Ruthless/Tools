@@ -8,317 +8,450 @@ Python程序打包工具 (Python Program Packaging Tool)
 """
 
 import os
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import subprocess
-import threading
 import sys
+import threading
+import subprocess
 import shutil
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                            QHBoxLayout, QPushButton, QLabel, QLineEdit, 
+                            QCheckBox, QTextEdit, QFileDialog, QFrame, QDialog)
+from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 
 
-class PackagingApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Python程序打包工具")
-        self.root.geometry("700x500")
-        self.root.configure(bg="#ffffff")
+class PackageWorker(QObject):
+    """打包工作线程的信号处理类"""
+    finished = pyqtSignal()
+    log_message = pyqtSignal(str)
+    show_message = pyqtSignal(str)
+    enable_button = pyqtSignal(bool)
 
-        # 初始化变量
-        self.python_file = tk.StringVar()
-        self.icon_file = tk.StringVar()
-        self.output_name = tk.StringVar()
-        self.console_var = tk.BooleanVar(value=False)
 
-        # 设置样式
-        self.setup_styles()
+class CustomMessageBox(QDialog):
+    """自定义消息框"""
+    def __init__(self, message, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("")
+        self.setFixedSize(400, 180)
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        # 主布局
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 内容框
+        content_frame = QFrame(self)
+        content_frame.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 12px;
+            }
+        """)
         
-        # 创建主框架
-        self.main_frame = ttk.Frame(self.root, padding="10")
-        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # 阴影效果
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(30)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        content_frame.setGraphicsEffect(shadow)
 
-        # 创建界面元素
-        self.create_widgets()
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(25, 25, 25, 25)
+        content_layout.setSpacing(20)
+
+        # 消息内容
+        message_label = QLabel(message)
+        message_label.setWordWrap(True)
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        message_label.setStyleSheet("""
+            QLabel {
+                color: #2c3e50;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+        """)
+
+        # 按钮
+        button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+
+        ok_button = QPushButton("确定")
+        ok_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        ok_button.setFixedSize(100, 36)
+        ok_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2475a8;
+            }
+        """)
+        ok_button.clicked.connect(self.accept)
+
+        button_layout.addStretch()
+        button_layout.addWidget(ok_button)
+        button_layout.addStretch()
+
+        content_layout.addWidget(message_label)
+        content_layout.addLayout(button_layout)
+        layout.addWidget(content_frame)
+
+
+class PackagingApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.worker = PackageWorker()
+        self.worker.log_message.connect(self._log_message)
+        self.worker.show_message.connect(self._show_message)
+        self.worker.enable_button.connect(self._enable_button)
         
-        # 配置网格权重
-        self.configure_grid()
-
-    def setup_styles(self):
-        """设置界面样式"""
-        style = ttk.Style()
-        style.theme_use('clam')
-
-        # 基础样式
-        style.configure(".",
-                       background="#ffffff",
-                       foreground="#333333",
-                       font=('Microsoft YaHei UI', 9))
+        self.setWindowTitle("Python程序打包工具")
+        self.setFixedSize(800, 600)
         
-        # 设置按钮样式
-        style.configure("TButton",
-                       padding=(10, 5),
-                       font=('Microsoft YaHei UI', 9),
-                       background="#4CAF50",
-                       foreground="#ffffff",
-                       borderwidth=0,
-                       relief="flat")
+        # 设置窗口图标
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "PackagingTool.ico")
+        self.setWindowIcon(QIcon(icon_path))
         
-        style.map("TButton",
-                  foreground=[('active', '#ffffff'),
-                             ('disabled', '#999999')],
-                  background=[('active', '#45a049'),
-                             ('disabled', '#cccccc')])
+        # 创建主窗口部件和布局
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(15, 8, 15, 8)
+        main_layout.setSpacing(4)
 
-        # 设置标签样式
-        style.configure("TLabel",
-                       font=('Microsoft YaHei UI', 9),
-                       background="#ffffff")
+        # 文件选择区域
+        file_frame = QFrame()
+        file_layout = QVBoxLayout(file_frame)
+        file_layout.setContentsMargins(15, 8, 15, 8)
+        file_layout.setSpacing(6)
         
-        # 设置框架样式
-        style.configure("TLabelframe",
-                       background="#ffffff",
-                       padding=8,
-                       relief="groove",
-                       borderwidth=1)
-        
-        style.configure("TLabelframe.Label",
-                       font=('Microsoft YaHei UI', 9, 'bold'),
-                       background="#ffffff",
-                       foreground="#1565C0")
-
-        # 设置Entry样式
-        style.configure("TEntry",
-                       font=('Microsoft YaHei UI', 9, 'bold'),
-                       padding=5,
-                       relief="groove",
-                       borderwidth=1)
-
-        # 设置打包按钮特殊样式
-        style.configure("Package.TButton",
-                       padding=(20, 8),
-                       font=('Microsoft YaHei UI', 10, 'bold'),
-                       background="#2196F3",
-                       borderwidth=0,
-                       relief="flat")
-        
-        style.map("Package.TButton",
-                  foreground=[('active', '#ffffff'),
-                             ('disabled', '#999999')],
-                  background=[('active', '#1976D2'),
-                             ('disabled', '#cccccc')])
-
-    def create_widgets(self):
-        """创建界面组件"""
-        # 标题
-        title_label = ttk.Label(
-            self.main_frame,
-            text="Python程序打包工具",
-            font=('Microsoft YaHei UI', 16, 'bold'),
-            foreground="#1565C0"
-        )
-        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 15))
-
         # Python文件选择
-        file_frame = ttk.LabelFrame(self.main_frame, text="程序文件")
-        file_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
+        file_title = QLabel("程序文件")
+        file_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #2c3e50;")
+        file_layout.addWidget(file_title)
         
-        ttk.Entry(
-            file_frame,
-            textvariable=self.python_file,
-            width=50,
-            style="TEntry"
-        ).grid(row=0, column=0, padx=5, pady=5)
+        file_input_layout = QHBoxLayout()
+        file_input_layout.setSpacing(8)
         
-        ttk.Button(
-            file_frame,
-            text="选择文件",
-            command=self.select_python_file,
-            width=12
-        ).grid(row=0, column=1, padx=5, pady=5)
+        self.python_file_path = QLineEdit()
+        self.python_file_path.setReadOnly(True)
+        self.python_file_path.setMinimumWidth(300)
+        self.python_file_path.setFixedHeight(45)
+        self.python_file_path.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 12px;
+                border: 2px solid #e1e8ed;
+                border-radius: 6px;
+                background-color: white;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+            }
+        """)
+        file_input_layout.addWidget(self.python_file_path, 1)
+        
+        select_file_button = QPushButton("选择文件")
+        select_file_button.setFixedSize(120, 45)
+        select_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        select_file_button.clicked.connect(self.select_python_file)
+        select_file_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2475a8;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+            }
+        """)
+        file_input_layout.addWidget(select_file_button)
+        file_layout.addLayout(file_input_layout)
+        main_layout.addWidget(file_frame)
 
-        # 图标选择
-        icon_frame = ttk.LabelFrame(self.main_frame, text="程序图标")
-        icon_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
+        # 图标选择区域
+        icon_frame = QFrame()
+        icon_layout = QVBoxLayout(icon_frame)
+        icon_layout.setContentsMargins(15, 8, 15, 8)
+        icon_layout.setSpacing(6)
         
-        ttk.Entry(
-            icon_frame,
-            textvariable=self.icon_file,
-            width=50,
-            style="TEntry"
-        ).grid(row=0, column=0, padx=5, pady=5)
+        icon_title = QLabel("程序图标")
+        icon_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #2c3e50;")
+        icon_layout.addWidget(icon_title)
         
-        ttk.Button(
-            icon_frame,
-            text="选择图标",
-            command=self.select_icon_file,
-            width=12
-        ).grid(row=0, column=1, padx=5, pady=5)
+        icon_input_layout = QHBoxLayout()
+        icon_input_layout.setSpacing(8)
+        
+        self.icon_file_path = QLineEdit()
+        self.icon_file_path.setReadOnly(True)
+        self.icon_file_path.setMinimumWidth(300)
+        self.icon_file_path.setFixedHeight(45)
+        self.icon_file_path.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 12px;
+                border: 2px solid #e1e8ed;
+                border-radius: 6px;
+                background-color: white;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+            }
+        """)
+        icon_input_layout.addWidget(self.icon_file_path, 1)
+        
+        select_icon_button = QPushButton("选择图标")
+        select_icon_button.setFixedSize(120, 45)
+        select_icon_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        select_icon_button.clicked.connect(self.select_icon_file)
+        select_icon_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0 15px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2475a8;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+            }
+        """)
+        icon_input_layout.addWidget(select_icon_button)
+        icon_layout.addLayout(icon_input_layout)
+        main_layout.addWidget(icon_frame)
 
-        # 输出设置
-        output_frame = ttk.LabelFrame(self.main_frame, text="输出设置")
-        output_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 8))
+        # 输出设置区域
+        output_frame = QFrame()
+        output_layout = QVBoxLayout(output_frame)
+        output_layout.setContentsMargins(15, 8, 15, 8)
+        output_layout.setSpacing(6)
         
-        ttk.Label(output_frame, text="程序名称:").grid(row=0, column=0, padx=5, pady=5)
-        ttk.Entry(
-            output_frame,
-            textvariable=self.output_name,
-            width=30,
-            style="TEntry"
-        ).grid(row=0, column=1, padx=5, pady=5)
-
-        ttk.Checkbutton(
-            output_frame,
-            text="显示控制台窗口",
-            variable=self.console_var
-        ).grid(row=0, column=2, padx=5, pady=5)
+        output_title = QLabel("输出设置")
+        output_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #2c3e50;")
+        output_layout.addWidget(output_title)
+        
+        output_input_layout = QHBoxLayout()
+        output_input_layout.setSpacing(8)
+        
+        name_label = QLabel("程序名称:")
+        name_label.setStyleSheet("color: #2c3e50; font-size: 13px;")
+        output_input_layout.addWidget(name_label)
+        
+        self.output_name = QLineEdit()
+        self.output_name.setFixedHeight(45)
+        self.output_name.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 12px;
+                border: 2px solid #e1e8ed;
+                border-radius: 6px;
+                background-color: white;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3498db;
+            }
+        """)
+        output_input_layout.addWidget(self.output_name, 1)
+        
+        self.console_checkbox = QCheckBox("显示控制台窗口")
+        self.console_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #2c3e50;
+                font-size: 13px;
+                spacing: 10px;
+            }
+            QCheckBox::indicator {
+                width: 22px;
+                height: 22px;
+                border: 2px solid #e1e8ed;
+                border-radius: 6px;
+                background-color: white;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #3498db;
+                background-color: #f8f9fa;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3498db;
+                border-color: #3498db;
+                image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M9.707 14.293l-3-3c-.391-.391-1.023-.391-1.414 0s-.391 1.023 0 1.414l3.707 3.707c.391.391 1.023.391 1.414 0l7.707-7.707c.391-.391.391-1.023 0-1.414s-1.023-.391-1.414 0l-7 7z'/%3E%3C/svg%3E");
+            }
+            QCheckBox::indicator:checked:hover {
+                background-color: #2980b9;
+                border-color: #2980b9;
+            }
+        """)
+        output_input_layout.addWidget(self.console_checkbox)
+        output_layout.addLayout(output_input_layout)
+        main_layout.addWidget(output_frame)
 
         # 打包按钮
-        package_btn = ttk.Button(
-            self.main_frame,
-            text="开始打包",
-            command=self.start_packaging,
-            style="Package.TButton"
-        )
-        package_btn.grid(row=4, column=0, columnspan=2, pady=15)
+        package_container = QWidget()
+        package_layout = QVBoxLayout(package_container)
+        package_layout.setContentsMargins(0, 0, 0, 8)
+        package_layout.setSpacing(0)
+        
+        self.package_button = QPushButton("开始打包")
+        self.package_button.setFixedSize(160, 45)
+        self.package_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.package_button.clicked.connect(self.start_packaging)
+        self.package_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ff4757;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: bold;
+                padding: 0;
+                min-height: 45px;
+                line-height: 45px;
+            }
+            QPushButton:hover {
+                background-color: #ff6b81;
+            }
+            QPushButton:pressed {
+                background-color: #ee5253;
+            }
+            QPushButton:disabled {
+                background-color: #b2bec3;
+            }
+        """)
+        package_layout.addWidget(self.package_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(package_container)
 
         # 日志区域
-        log_frame = ttk.LabelFrame(self.main_frame, text="打包日志")
-        log_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        log_frame = QFrame()
+        log_layout = QVBoxLayout(log_frame)
+        log_layout.setContentsMargins(15, 8, 15, 8)
+        log_layout.setSpacing(6)
         
-        # 创建日志文本框的容器框架
-        log_container = ttk.Frame(log_frame)
-        log_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        log_container.grid_columnconfigure(0, weight=1)
-        log_container.grid_rowconfigure(0, weight=1)
+        log_title = QLabel("打包日志")
+        log_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #2c3e50;")
+        log_layout.addWidget(log_title)
         
-        self.log_text = tk.Text(
-            log_container,
-            height=10,
-            font=('Microsoft YaHei UI', 9),
-            wrap=tk.WORD,
-            background="#ffffff",
-            relief="groove",
-            borderwidth=1,
-            highlightthickness=0
-        )
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        scrollbar = ttk.Scrollbar(log_container, orient="vertical", command=self.log_text.yview)
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.log_text.configure(yscrollcommand=scrollbar.set)
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setStyleSheet("""
+            QTextEdit {
+                border: 2px solid #e1e8ed;
+                border-radius: 6px;
+                background-color: white;
+                padding: 8px;
+                font-size: 13px;
+            }
+        """)
+        log_layout.addWidget(self.log_text)
+        main_layout.addWidget(log_frame)
 
-        # 配置日志框架的权重
-        log_frame.grid_columnconfigure(0, weight=1)
-        log_frame.grid_rowconfigure(0, weight=1)
+        # 设置阴影效果
+        for frame in [file_frame, icon_frame, output_frame, log_frame]:
+            shadow = QGraphicsDropShadowEffect()
+            shadow.setBlurRadius(10)
+            shadow.setXOffset(0)
+            shadow.setYOffset(2)
+            shadow.setColor(QColor(0, 0, 0, 20))
+            frame.setGraphicsEffect(shadow)
 
-    def configure_grid(self):
-        """配置网格权重"""
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(0, weight=1)
-        self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(5, weight=1)
+        # 设置日志区域的伸缩因子
+        main_layout.setStretch(4, 1)
 
     def select_python_file(self):
         """选择Python文件"""
-        file = filedialog.askopenfilename(
-            filetypes=[("Python Files", "*.py")]
+        file, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择Python文件",
+            "",
+            "Python Files (*.py)"
         )
         if file:
-            self.python_file.set(file)
-            # 自动设置输出名称（不管是否已有值都更新）
+            self.python_file_path.setText(file)
+            # 自动设置输出名称
             default_name = os.path.splitext(os.path.basename(file))[0]
-            self.output_name.set(default_name)
+            self.output_name.setText(default_name)
             # 清空日志
-            self.log_text.delete(1.0, tk.END)
+            self.log_text.clear()
             self.log_message(f"已选择文件: {file}")
             self.log_message(f"默认输出名称: {default_name}")
 
     def select_icon_file(self):
         """选择图标文件"""
-        file = filedialog.askopenfilename(
-            filetypes=[("Icon Files", "*.ico")]
+        file, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择图标文件",
+            "",
+            "Icon Files (*.ico)"
         )
         if file:
-            self.icon_file.set(file)
+            self.icon_file_path.setText(file)
+
+    def _log_message(self, message):
+        """线程安全的日志更新"""
+        self.log_text.append(message)
+        self.log_text.verticalScrollBar().setValue(
+            self.log_text.verticalScrollBar().maximum()
+        )
+
+    def _show_message(self, message):
+        """线程安全的显示消息框"""
+        dialog = CustomMessageBox(message, self)
+        dialog.exec()
+
+    def _enable_button(self, enabled):
+        """线程安全的按钮状态更新"""
+        self.package_button.setEnabled(enabled)
 
     def log_message(self, message):
-        """添加日志消息"""
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        self.root.update_idletasks()
-
-    def check_pyinstaller(self):
-        """检查是否安装了PyInstaller"""
-        try:
-            # 使用 pip list 命令检查
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "list"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            return "pyinstaller" in result.stdout.lower()
-        except Exception:
-            return False
-
-    def install_pyinstaller(self):
-        """安装PyInstaller"""
-        try:
-            self.log_message("正在安装 PyInstaller...")
-            # 使用 pip install 命令安装
-            process = subprocess.Popen(
-                [sys.executable, "-m", "pip", "install", "pyinstaller"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            # 实时输出安装日志
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
-                    self.log_message(output.strip())
-            
-            # 获取错误输出
-            _, stderr = process.communicate()
-            if stderr:
-                self.log_message(f"安装过程信息：\n{stderr}")
-            
-            if process.returncode == 0:
-                self.log_message("PyInstaller 安装成功！")
-                return True
-            else:
-                raise Exception(f"安装失败，返回码：{process.returncode}")
-        except Exception as e:
-            self.log_message(f"PyInstaller 安装失败: {str(e)}")
-            return False
+        """发送日志消息信号"""
+        self.worker.log_message.emit(message)
 
     def package_program(self):
         """执行打包操作"""
         try:
-            python_file = self.python_file.get()
-            icon_file = self.icon_file.get()
-            output_name = self.output_name.get()
-            show_console = self.console_var.get()
+            python_file = self.python_file_path.text()
+            icon_file = self.icon_file_path.text()
+            output_name = self.output_name.text()
+            show_console = self.console_checkbox.isChecked()
 
             if not python_file:
-                messagebox.showerror("错误", "请选择要打包的Python文件！")
+                self.worker.show_message.emit("请选择要打包的Python文件！")
+                self.worker.enable_button.emit(True)
                 return
             
             if not output_name:
-                messagebox.showerror("错误", "请输入输出程序名称！")
+                self.worker.show_message.emit("请输入输出程序名称！")
+                self.worker.enable_button.emit(True)
                 return
-
-            # 检查并安装PyInstaller
-            if not self.check_pyinstaller():
-                self.log_message("未检测到 PyInstaller，准备安装...")
-                if not self.install_pyinstaller():
-                    messagebox.showerror("错误", "PyInstaller 安装失败，无法继续打包！")
-                    return
-            else:
-                self.log_message("检测到 PyInstaller 已安装")
 
             # 构建命令
             cmd = [
@@ -328,21 +461,18 @@ class PackagingApp:
                 "--noconfirm",
                 "--clean",
                 "--onefile",
-                "--noupx",  # 禁用UPX压缩
-                "--disable-windowed-traceback",  # 禁用窗口化错误回溯
-                "--debug=all"  # 添加调试信息
+                "--noupx",
+                "--disable-windowed-traceback",
+                "--debug=all"
             ]
 
-            # 添加图标（检查图标文件是否存在且有效）
+            # 添加图标
             if icon_file and os.path.exists(icon_file):
                 try:
-                    # 验证图标文件
                     with open(icon_file, 'rb') as f:
                         header = f.read(4)
-                        if header.startswith(b'\x00\x00\x01\x00'):  # ICO文件头标识
-                            # 创建临时图标文件
+                        if header.startswith(b'\x00\x00\x01\x00'):
                             temp_icon = os.path.join(os.path.dirname(python_file), "temp_icon.ico")
-                            import shutil
                             shutil.copy2(icon_file, temp_icon)
                             cmd.extend(["--icon", temp_icon])
                             self.log_message("已添加图标文件")
@@ -394,13 +524,11 @@ class PackagingApp:
                             break
                         line = line.strip()
                         if line:
-                            # 解析输出类型
                             if "ERROR:" in line or "Error:" in line:
                                 self.log_message(f"错误: {line}")
                             elif "WARNING:" in line or "Warning:" in line:
                                 self.log_message(f"警告: {line}")
                             elif "INFO:" in line:
-                                # 只显示重要的INFO信息
                                 if any(key in line.lower() for key in [
                                     "building", "copying icon", "appending", "completed successfully"
                                 ]):
@@ -472,13 +600,12 @@ class PackagingApp:
                         
                         # 打开输出目录
                         os.startfile(os.path.dirname(target_exe_path))
-                        messagebox.showinfo("完成", "程序打包成功！\n已自动打开输出目录。\n\n注意：如果杀毒软件报警，请将程序添加到白名单。")
+                        self.worker.show_message.emit("程序打包成功！\n已自动打开输出目录。\n\n注意：如果杀毒软件报警，请将程序添加到白名单。")
                     except Exception as e:
                         raise Exception(f"移动文件或清理临时文件时出错: {str(e)}")
                 else:
                     raise Exception("未找到输出文件")
             else:
-                # 获取最后的错误信息
                 stdout, stderr = process.communicate()
                 error_details = []
                 
@@ -511,29 +638,20 @@ class PackagingApp:
         except Exception as e:
             error_msg = f"打包过程中出现错误：{str(e)}"
             self.log_message(error_msg)
-            messagebox.showerror("错误", error_msg)
+            self.worker.show_message.emit(error_msg)
         finally:
             self.log_message("\n打包过程结束。")
-            # 启用所有按钮
-            for child in self.main_frame.winfo_children():
-                if isinstance(child, ttk.Button):
-                    child.configure(state='normal')
+            self.worker.enable_button.emit(True)
 
     def start_packaging(self):
         """在新线程中启动打包过程"""
-        # 禁用打包按钮
-        for child in self.main_frame.winfo_children():
-            if isinstance(child, ttk.Button):
-                child.configure(state='disabled')
-        
-        # 清空日志
-        self.log_text.delete(1.0, tk.END)
-        
-        # 启动打包线程
+        self.worker.enable_button.emit(False)
+        self.log_text.clear()
         threading.Thread(target=self.package_program, daemon=True).start()
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = PackagingApp(root)
-    root.mainloop() 
+    app = QApplication(sys.argv)
+    window = PackagingApp()
+    window.show()
+    sys.exit(app.exec()) 
